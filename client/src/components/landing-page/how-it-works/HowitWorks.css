@@ -1,0 +1,177 @@
+/* =================================
+   HOW IT WORKS SECTION
+================================= */
+
+.how-it-works {
+  padding: 100px 24px;
+
+  background-color: #ffffff;
+
+  color: #0f172a;
+}
+
+
+/* =================================
+   SECTION HEADING
+================================= */
+
+.how-it-works-heading {
+  max-width: 700px;
+
+  margin: 0 auto;
+
+  text-align: center;
+}
+
+
+/* Small purple label */
+
+.section-label {
+  margin: 0;
+
+  color: #7c3aed;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  letter-spacing: 2px;
+}
+
+
+/* Main heading */
+
+.how-it-works-heading h2 {
+  margin: 15px 0 0;
+
+  font-size: 48px;
+  line-height: 1.1;
+
+  font-weight: 800;
+}
+
+
+/* Highlighted part of heading */
+
+.how-it-works-heading h2 span {
+  color: #7c3aed;
+}
+
+
+/* Description */
+
+.section-description {
+  max-width: 600px;
+
+  margin: 20px auto 0;
+
+  color: #64748b;
+
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+
+/* =================================
+   STEPS
+================================= */
+
+.steps {
+  max-width: 1200px;
+
+  margin: 60px auto 0;
+
+  display: grid;
+
+  grid-template-columns: repeat(3, 1fr);
+
+  gap: 24px;
+}
+
+
+/* =================================
+   STEP CARD
+================================= */
+
+.step-card {
+  padding: 32px;
+
+  border: 1px solid #e2e8f0;
+
+  border-radius: 24px;
+
+  background-color: #f8fafc;
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+
+/* Card hover animation */
+
+.step-card:hover {
+  transform: translateY(-8px);
+
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+}
+
+
+/* Step number */
+
+.step-number {
+  display: inline-block;
+
+  color: #7c3aed;
+
+  font-size: 14px;
+  font-weight: 700;
+}
+
+
+/* Card title */
+
+.step-card h3 {
+  margin: 24px 0 12px;
+
+  font-size: 24px;
+
+  font-weight: 700;
+}
+
+
+/* Card description */
+
+.step-card p {
+  margin: 0;
+
+  color: #64748b;
+
+  line-height: 1.7;
+}
+
+
+/* =================================
+   MOBILE
+================================= */
+
+@media (max-width: 768px) {
+
+  .how-it-works {
+    padding: 80px 20px;
+  }
+
+  .how-it-works-heading h2 {
+    font-size: 38px;
+  }
+
+  .section-description {
+    font-size: 16px;
+  }
+
+  .steps {
+    grid-template-columns: 1fr;
+
+    margin-top: 40px;
+  }
+
+}

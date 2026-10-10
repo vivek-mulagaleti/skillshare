@@ -1,0 +1,118 @@
+/* =========================
+   NAVBAR
+========================= */
+
+.navbar {
+  width: 100%;
+  max-width: 1200px;
+
+  margin: 0 auto;
+
+  padding: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+
+/* =========================
+   LOGO
+========================= */
+
+.navbar-logo {
+  color: white;
+
+  font-size: 24px;
+  font-weight: 700;
+
+  text-decoration: none;
+}
+
+.navbar-logo span {
+  color: #22d3ee;
+}
+
+
+/* =========================
+   NAVIGATION LINKS
+========================= */
+
+.navbar-links {
+  display: flex;
+  align-items: center;
+
+  gap: 30px;
+}
+
+.navbar-links a {
+  color: #94a3b8;
+
+  font-size: 14px;
+
+  text-decoration: none;
+
+  transition: color 0.2s ease;
+}
+
+
+/* When mouse is over a link */
+
+.navbar-links a:hover {
+  color: white;
+}
+
+
+/* =========================
+   GET STARTED BUTTON
+========================= */
+
+.navbar-button {
+  padding: 11px 20px;
+
+  border-radius: 999px;
+
+  background-color: white;
+
+  color: #0f172a !important;
+
+  font-weight: 600;
+}
+
+.navbar-button:hover {
+  background-color: #67e8f9 !important;
+}
+
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 768px) {
+
+  .navbar {
+    padding: 20px;
+  }
+
+  .navbar-links {
+    gap: 15px;
+  }
+
+}
+
+
+@media (max-width: 600px) {
+
+  .navbar {
+    flex-direction: column;
+
+    gap: 20px;
+  }
+
+  .navbar-links {
+    flex-wrap: wrap;
+
+    justify-content: center;
+  }
+
+}
