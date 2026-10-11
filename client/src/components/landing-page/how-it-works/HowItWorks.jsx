@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 
-import "./HowItWorks.css";
+import "./HowitWorks.css";
 
 function HowItWorks() {
   return (
