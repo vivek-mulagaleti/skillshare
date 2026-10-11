@@ -9,7 +9,10 @@ import MySkills from "./pages/MySkills/MySkills";
 import Discover from "./pages/Discover/Discover";
 import Profile from "./pages/Profile/Profile";
 import MySessions from "./pages/MySessions/MySessions";
-
+import Notifications from "./pages/Notifications/Notifications";
+import EditProfile from "./pages/Profile/EditProfile";
+import NotFound from "./pages/NotFound";
+import GoogleCallback from "./pages/GoogleCallback";
 function App() {
   return (
     <BrowserRouter>
@@ -25,6 +28,13 @@ function App() {
         <Route path="/discover" element={<Discover />} />
         <Route path="/profile/:userId" element={<Profile />} />
         <Route path="/my-sessions" element={<MySessions />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/edit-profile" element={<EditProfile />} />
+        <Route path="*" element={<NotFound />} />
+        <Route
+  path="/auth/google/callback"
+  element={<GoogleCallback />}
+/>
       </Routes>
     </BrowserRouter>
   );

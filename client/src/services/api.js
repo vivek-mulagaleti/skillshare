@@ -8,7 +8,7 @@ const api = axios.create({
   },
 });
 
-// Attach the login token to every API request.
+// Attach the login token to API requests.
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
@@ -20,6 +20,33 @@ api.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+// Handle expired or invalid authentication.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+    const requestUrl = error.config?.url || "";
+
+    if (status === 401) {
+      const isAuthRequest =
+        requestUrl.includes("/auth/login") ||
+        requestUrl.includes("/auth/register");
+
+      // Don't redirect when login or registration itself fails.
+      if (!isAuthRequest) {
+        localStorage.removeItem("token");
+
+        // Avoid redirecting repeatedly if already on the login page.
+        if (window.location.pathname !== "/login") {
+          window.location.replace("/login");
+        }
+      }
+    }
+
+    return Promise.reject(error);
+  }
 );
 
 export default api;

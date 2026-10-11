@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -7,131 +7,260 @@ import {
   Clock,
   Languages,
   Sparkles,
-  UserRound,
   MessageCircle,
   AlertCircle,
+  Star,
+  Quote,
 } from "lucide-react";
 
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
-
 import "./Profile.css";
+
+function getId(value) {
+  if (!value) return "";
+  return String(value._id || value.id || value);
+}
+
+function RatingStars({ rating, size = 17 }) {
+  const numericRating = Number(rating) || 0;
+  const roundedRating = Math.round(numericRating);
+
+  return (
+    <span
+      className="profile-rating-stars"
+      role="img"
+      aria-label={`${numericRating.toFixed(1)} out of 5 stars`}
+    >
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          size={size}
+          fill={star <= roundedRating ? "currentColor" : "none"}
+          strokeWidth={1.8}
+        />
+      ))}
+    </span>
+  );
+}
 
 function Profile() {
   const { user, loading } = useAuth();
-
   const { userId } = useParams();
-
   const [searchParams] = useSearchParams();
 
-  const skillId = searchParams.get("skill");
+  const requestedSkillId = searchParams.get("skill") || "";
 
   const [profile, setProfile] = useState(null);
-
+  const [teachingSkills, setTeachingSkills] = useState([]);
   const [profileLoading, setProfileLoading] = useState(true);
-
   const [error, setError] = useState("");
 
+  // Teacher reviews
+  const [reviews, setReviews] = useState([]);
+  const [averageRating, setAverageRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [reviewsError, setReviewsError] = useState("");
+
+  // Session request modal
   const [showRequestModal, setShowRequestModal] = useState(false);
-
+  const [selectedSkillId, setSelectedSkillId] = useState("");
   const [duration, setDuration] = useState(1);
-
   const [message, setMessage] = useState("");
 
   const [requestLoading, setRequestLoading] = useState(false);
-
   const [requestError, setRequestError] = useState("");
-
   const [requestSuccess, setRequestSuccess] = useState("");
 
-  const loadProfile = async () => {
+  const currentUserId = getId(user);
+  const isOwnProfile =
+    Boolean(currentUserId) && currentUserId === getId(userId);
+
+  // Load profile and teaching skills
+  const loadProfile = useCallback(async () => {
+    if (!userId) {
+      setError("User profile not found.");
+      setProfileLoading(false);
+      return;
+    }
+
     try {
       setProfileLoading(true);
       setError("");
 
-      const token = localStorage.getItem("token");
+      const [profileResponse, skillsResponse] = await Promise.all([
+        api.get(`/users/${userId}`),
+        api.get(`/user-skills/teacher/${userId}`),
+      ]);
 
-      const response = await api.get(`/users/${userId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const loadedProfile = profileResponse.data.user;
+      const skills = skillsResponse.data.teachingSkills || [];
 
-      setProfile(response.data.user);
-    } catch (error) {
-      console.error(
-        "Failed to load profile:",
-        error.response?.data || error.message,
+      setProfile(loadedProfile);
+      setTeachingSkills(skills);
+
+      const requestedSkillExists = skills.some(
+        (item) => getId(item.skill) === requestedSkillId,
       );
 
-      setError(error.response?.data?.message || "Unable to load this profile.");
+      // Prefer the skill selected from Discover.
+      // Otherwise use the teacher's first available skill.
+      const initialSkillId = requestedSkillExists
+        ? requestedSkillId
+        : getId(skills[0]?.skill);
+
+      setSelectedSkillId(initialSkillId);
+    } catch (err) {
+      console.error(
+        "Failed to load profile:",
+        err.response?.data || err.message,
+      );
+
+      setError(
+        err.response?.data?.message ||
+          "Unable to load this profile. Please try again.",
+      );
     } finally {
       setProfileLoading(false);
     }
-  };
-
-  const handleSessionRequest = async (event) => {
-  event.preventDefault();
-
-  try {
-    setRequestLoading(true);
-    setRequestError("");
-    setRequestSuccess("");
-
-    const token = localStorage.getItem("token");
-
-    const response = await api.post(
-      "/sessions/request",
-      {
-        teacherId: userId,
-        skillId,
-        duration: Number(duration),
-        message,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    );
-
-    setRequestSuccess(
-      response.data.message ||
-        "Session request sent successfully."
-    );
-
-    setMessage("");
-    setDuration(1);
-
-    setTimeout(() => {
-      setShowRequestModal(false);
-      setRequestSuccess("");
-    }, 1500);
-  } catch (error) {
-    console.error(
-      "Session request failed:",
-      error.response?.data || error.message
-    );
-
-    setRequestError(
-      error.response?.data?.message ||
-        "Unable to send your session request."
-    );
-  } finally {
-    setRequestLoading(false);
-  }
-};
+  }, [userId, requestedSkillId]);
 
   useEffect(() => {
     if (user && userId) {
       loadProfile();
     }
-  }, [user, userId]);
+  }, [user, userId, loadProfile]);
 
-  if (loading) {
+  // Load teacher reviews
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadReviews = async () => {
+      if (!userId) {
+        setReviewsLoading(false);
+        return;
+      }
+
+      try {
+        setReviewsLoading(true);
+        setReviewsError("");
+
+        const response = await api.get(`/reviews/teacher/${userId}`);
+
+        if (cancelled) return;
+
+        const data = response.data || {};
+        const loadedReviews = Array.isArray(data.reviews) ? data.reviews : [];
+
+        setReviews(loadedReviews);
+        setAverageRating(Number(data.averageRating) || 0);
+        setReviewCount(Number(data.count ?? loadedReviews.length) || 0);
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error(
+          "Failed to load teacher reviews:",
+          err.response?.data || err.message,
+        );
+
+        setReviewsError(
+          err.response?.data?.message || "Unable to load reviews right now.",
+        );
+      } finally {
+        if (!cancelled) {
+          setReviewsLoading(false);
+        }
+      }
+    };
+
+    loadReviews();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  // Open session request modal
+  const openRequestModal = () => {
+    setRequestError("");
+    setRequestSuccess("");
+
+    const requestedSkillExists = teachingSkills.some(
+      (item) => getId(item.skill) === selectedSkillId,
+    );
+
+    if (!requestedSkillExists) {
+      setSelectedSkillId(getId(teachingSkills[0]?.skill));
+    }
+
+    setShowRequestModal(true);
+  };
+
+  // Submit session request
+  const handleSessionRequest = async (event) => {
+    event.preventDefault();
+
+    setRequestError("");
+    setRequestSuccess("");
+
+    if (isOwnProfile) {
+      setRequestError("You cannot request a session with yourself.");
+      return;
+    }
+
+    const selectedTeachingSkill = teachingSkills.find(
+      (item) => getId(item.skill) === selectedSkillId,
+    );
+
+    if (!selectedTeachingSkill || !getId(selectedTeachingSkill.skill)) {
+      setRequestError("Please select a skill this teacher offers.");
+      return;
+    }
+
+    if (
+      !Number.isInteger(Number(duration)) ||
+      Number(duration) < 1 ||
+      Number(duration) > 4
+    ) {
+      setRequestError("Choose a duration between 1 and 4 hours.");
+      return;
+    }
+
+    try {
+      setRequestLoading(true);
+
+      const response = await api.post("/sessions/request", {
+        teacherId: getId(userId),
+        skillId: getId(selectedTeachingSkill.skill),
+        duration: Number(duration),
+        message: message.trim(),
+      });
+
+      setRequestSuccess(
+        response.data.message || "Session request sent successfully.",
+      );
+
+      setMessage("");
+      setDuration(1);
+    } catch (err) {
+      console.error(
+        "Session request failed:",
+        err.response?.data || err.message,
+      );
+
+      setRequestError(
+        err.response?.data?.message || "Unable to send your session request.",
+      );
+    } finally {
+      setRequestLoading(false);
+    }
+  };
+
+  if (loading || profileLoading) {
     return (
       <main className="profile-loading">
-        <div className="profile-spinner"></div>
+        <div className="profile-spinner" />
         <p>Loading profile...</p>
       </main>
     );
@@ -139,15 +268,6 @@ function Profile() {
 
   if (!user) {
     return <Navigate to="/login" replace />;
-  }
-
-  if (profileLoading) {
-    return (
-      <main className="profile-loading">
-        <div className="profile-spinner"></div>
-        <p>Loading profile...</p>
-      </main>
-    );
   }
 
   if (error || !profile) {
@@ -159,7 +279,6 @@ function Profile() {
           </div>
 
           <h2>Profile unavailable</h2>
-
           <p>{error || "We couldn't find this user."}</p>
 
           <Link to="/discover" className="profile-back-button">
@@ -175,7 +294,6 @@ function Profile() {
 
   return (
     <main className="profile-page">
-      {/* Header */}
       <header className="profile-header">
         <Link to="/discover" className="profile-back-link">
           <ArrowLeft size={18} />
@@ -193,7 +311,6 @@ function Profile() {
         </Link>
       </header>
 
-      {/* Main */}
       <section className="profile-content">
         <motion.div
           className="profile-card"
@@ -201,7 +318,9 @@ function Profile() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Profile hero */}
+          {/* Profile header */}
+
+          {/* Profile header */}
           <div className="profile-hero">
             <div className="profile-avatar">
               {profile.avatar ? (
@@ -221,20 +340,33 @@ function Profile() {
               </p>
             </div>
 
-            <button
-  className="profile-message-button"
-  onClick={() => {
-    setRequestError("");
-    setRequestSuccess("");
-    setShowRequestModal(true);
-  }}
->
-  <MessageCircle size={17} />
-  Request session
-</button>
+            {isOwnProfile ? (
+              <Link
+                to="/edit-profile"
+                className="profile-message-button"
+                title="Edit your profile"
+              >
+                Edit Profile
+              </Link>
+            ) : (
+              <button
+                type="button"
+                className="profile-message-button"
+                onClick={openRequestModal}
+                disabled={teachingSkills.length === 0}
+                title={
+                  teachingSkills.length === 0
+                    ? "This member has not added any teaching skills."
+                    : "Request a session"
+                }
+              >
+                <MessageCircle size={17} />
+                Request session
+              </button>
+            )}
           </div>
 
-          {/* Stats */}
+          {/* Profile stats */}
           <div className="profile-stats">
             <div className="profile-stat">
               <div className="profile-stat-icon">
@@ -243,7 +375,6 @@ function Profile() {
 
               <div>
                 <strong>{profile.timeCredits ?? 0}</strong>
-
                 <span>Time credits</span>
               </div>
             </div>
@@ -255,7 +386,6 @@ function Profile() {
 
               <div>
                 <strong>{profile.languages?.length || 0}</strong>
-
                 <span>Languages</span>
               </div>
             </div>
@@ -265,7 +395,6 @@ function Profile() {
           <div className="profile-section">
             <div className="profile-section-heading">
               <BookOpen size={19} />
-
               <h2>About this member</h2>
             </div>
 
@@ -279,7 +408,6 @@ function Profile() {
             <div className="profile-section">
               <div className="profile-section-heading">
                 <Languages size={19} />
-
                 <h2>Languages</h2>
               </div>
 
@@ -290,149 +418,299 @@ function Profile() {
               </div>
             </div>
           )}
+
+          {/* Teaching skills */}
+          <div className="profile-section">
+            <div className="profile-section-heading">
+              <BookOpen size={19} />
+              <h2>Skills this member teaches</h2>
+            </div>
+
+            {teachingSkills.length === 0 ? (
+              <p className="profile-about">
+                This member hasn't added any teaching skills yet.
+              </p>
+            ) : (
+              <div className="profile-tags">
+                {teachingSkills.map((item) => (
+                  <span key={item._id}>
+                    {item.skill?.name || "Skill"}
+                    {item.level ? ` · ${item.level}` : ""}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Teacher ratings and reviews */}
+          <div className="profile-section profile-reviews-section">
+            <div className="profile-section-heading">
+              <Star size={19} />
+              <h2>Reviews from learners</h2>
+            </div>
+
+            {reviewsLoading ? (
+              <div className="profile-reviews-loading">
+                <div className="profile-spinner" />
+                <p>Loading reviews...</p>
+              </div>
+            ) : reviewsError ? (
+              <div className="profile-reviews-error" role="alert">
+                <AlertCircle size={18} />
+                <p>{reviewsError}</p>
+              </div>
+            ) : (
+              <>
+                {/* Rating summary */}
+                <div className="profile-rating-summary">
+                  <div className="profile-rating-score">
+                    <strong>{averageRating.toFixed(1)}</strong>
+
+                    <RatingStars rating={averageRating} size={20} />
+
+                    <span>
+                      {reviewCount === 1
+                        ? "1 learner review"
+                        : `${reviewCount} learner reviews`}
+                    </span>
+                  </div>
+
+                  <div className="profile-rating-description">
+                    <Quote size={22} />
+
+                    <p>
+                      Feedback from learners who have completed sessions with{" "}
+                      {profile.name}.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Empty state */}
+                {reviews.length === 0 ? (
+                  <div className="profile-no-reviews">
+                    <div className="profile-no-reviews-icon">
+                      <MessageCircle size={25} />
+                    </div>
+
+                    <h3>No reviews yet</h3>
+
+                    <p>
+                      Once learners complete sessions and leave feedback, their
+                      reviews will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  /* Individual reviews */
+                  <div className="profile-review-list">
+                    {reviews.map((review) => {
+                      const learnerName = review.learner?.name || "Learner";
+
+                      const numericRating = Number(review.rating) || 0;
+
+                      const reviewDate = review.createdAt
+                        ? new Date(review.createdAt).toLocaleDateString(
+                            undefined,
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            },
+                          )
+                        : "";
+
+                      return (
+                        <article
+                          className="profile-review-card"
+                          key={review._id}
+                        >
+                          <div className="profile-review-header">
+                            <div className="profile-review-avatar">
+                              {review.learner?.avatar ? (
+                                <img
+                                  src={review.learner.avatar}
+                                  alt={learnerName}
+                                />
+                              ) : (
+                                learnerName.charAt(0).toUpperCase()
+                              )}
+                            </div>
+
+                            <div className="profile-review-author">
+                              <h3>{learnerName}</h3>
+
+                              {reviewDate && <span>{reviewDate}</span>}
+                            </div>
+
+                            <div className="profile-review-rating">
+                              <RatingStars rating={numericRating} size={15} />
+
+                              <span>{numericRating}/5</span>
+                            </div>
+                          </div>
+
+                          {review.skill?.name && (
+                            <span className="profile-review-skill">
+                              <BookOpen size={13} />
+                              {review.skill.name}
+                            </span>
+                          )}
+
+                          <p className="profile-review-comment">
+                            {review.comment?.trim() ||
+                              "The learner left a rating without a written comment."}
+                          </p>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </motion.div>
       </section>
+
+      {/* Session request modal */}
       {showRequestModal && (
-  <div
-    className="session-modal-overlay"
-    onClick={() => {
-      if (!requestLoading) {
-        setShowRequestModal(false);
-      }
-    }}
-  >
-    <motion.div
-      className="session-modal"
-      initial={{ opacity: 0, scale: 0.95, y: 10 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
-      onClick={(event) => event.stopPropagation()}
-    >
-      <div className="session-modal-header">
-        <div>
-          <p className="session-modal-eyebrow">
-            REQUEST A SESSION
-          </p>
-
-          <h2>Learn from {profile.name}</h2>
-
-          <p>
-            Send a request and start your learning journey.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          className="session-modal-close"
-          onClick={() => setShowRequestModal(false)}
-          disabled={requestLoading}
+        <div
+          className="session-modal-overlay"
+          onClick={() => {
+            if (!requestLoading) {
+              setShowRequestModal(false);
+            }
+          }}
         >
-          ×
-        </button>
-      </div>
-
-      <form
-        className="session-form"
-        onSubmit={handleSessionRequest}
-      >
-        <div className="session-form-group">
-          <label>Skill</label>
-
-          <div className="session-selected-skill">
-            <BookOpen size={17} />
-
-            <span>
-              Learning session
-            </span>
-          </div>
-        </div>
-
-        <div className="session-form-group">
-          <label htmlFor="duration">
-            Session duration
-          </label>
-
-          <select
-            id="duration"
-            value={duration}
-            onChange={(event) =>
-              setDuration(Number(event.target.value))
-            }
-            disabled={requestLoading}
+          <motion.div
+            className="session-modal"
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={(event) => event.stopPropagation()}
           >
-            <option value={1}>
-              1 hour — 1 time credit
-            </option>
+            <div className="session-modal-header">
+              <div>
+                <p className="session-modal-eyebrow">REQUEST A SESSION</p>
 
-            <option value={2}>
-              2 hours — 2 time credits
-            </option>
+                <h2>Learn from {profile.name}</h2>
 
-            <option value={3}>
-              3 hours — 3 time credits
-            </option>
+                <p>Choose a skill and send your learning request.</p>
+              </div>
 
-            <option value={4}>
-              4 hours — 4 time credits
-            </option>
-          </select>
+              <button
+                type="button"
+                className="session-modal-close"
+                onClick={() => setShowRequestModal(false)}
+                disabled={requestLoading}
+                aria-label="Close request form"
+              >
+                ×
+              </button>
+            </div>
+
+            <form className="session-form" onSubmit={handleSessionRequest}>
+              <div className="session-form-group">
+                <label htmlFor="session-skill">Skill</label>
+
+                <select
+                  id="session-skill"
+                  value={selectedSkillId}
+                  onChange={(event) => setSelectedSkillId(event.target.value)}
+                  disabled={requestLoading || teachingSkills.length === 0}
+                  required
+                >
+                  <option value="">Select a skill</option>
+
+                  {teachingSkills.map((item) => (
+                    <option key={item._id} value={getId(item.skill)}>
+                      {item.skill?.name || "Skill"}
+                      {item.level ? ` — ${item.level}` : ""}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedSkillId && (
+                  <p className="session-selected-skill">
+                    {teachingSkills.find(
+                      (item) => getId(item.skill) === selectedSkillId,
+                    )?.description || ""}
+                  </p>
+                )}
+              </div>
+
+              <div className="session-form-group">
+                <label htmlFor="duration">Session duration</label>
+
+                <select
+                  id="duration"
+                  value={duration}
+                  onChange={(event) => setDuration(Number(event.target.value))}
+                  disabled={requestLoading}
+                >
+                  <option value={1}>1 hour — 1 time credit</option>
+                  <option value={2}>2 hours — 2 time credits</option>
+                  <option value={3}>3 hours — 3 time credits</option>
+                  <option value={4}>4 hours — 4 time credits</option>
+                </select>
+              </div>
+
+              <div className="session-form-group">
+                <label htmlFor="message">Message</label>
+
+                <textarea
+                  id="message"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  placeholder={`Tell ${profile.name} what you'd like to learn...`}
+                  maxLength={500}
+                  disabled={requestLoading}
+                  rows={4}
+                />
+
+                <span className="session-character-count">
+                  {message.length}/500
+                </span>
+              </div>
+
+              {requestError && (
+                <div className="session-form-error" role="alert">
+                  <AlertCircle size={16} />
+                  <span>{requestError}</span>
+                </div>
+              )}
+
+              {requestSuccess && (
+                <div className="session-form-success" role="status">
+                  ✓ {requestSuccess}
+                </div>
+              )}
+
+              <div className="session-form-footer">
+                <p>
+                  Credits are reserved when the teacher accepts your request. If
+                  the session is cancelled, reserved credits are refunded.
+                </p>
+
+                <button
+                  type="submit"
+                  className="session-submit-button"
+                  disabled={
+                    requestLoading ||
+                    !selectedSkillId ||
+                    teachingSkills.length === 0 ||
+                    Boolean(requestSuccess)
+                  }
+                >
+                  {requestLoading
+                    ? "Sending..."
+                    : requestSuccess
+                      ? "Request sent"
+                      : "Send request"}
+                </button>
+              </div>
+            </form>
+          </motion.div>
         </div>
-
-        <div className="session-form-group">
-          <label htmlFor="message">
-            Message
-          </label>
-
-          <textarea
-            id="message"
-            value={message}
-            onChange={(event) =>
-              setMessage(event.target.value)
-            }
-            placeholder={`Tell ${profile.name} what you'd like to learn...`}
-            maxLength={500}
-            disabled={requestLoading}
-            rows={4}
-          />
-
-          <span className="session-character-count">
-            {message.length}/500
-          </span>
-        </div>
-
-        {requestError && (
-          <div className="session-form-error">
-            <AlertCircle size={16} />
-            <span>{requestError}</span>
-          </div>
-        )}
-
-        {requestSuccess && (
-          <div className="session-form-success">
-            ✓ {requestSuccess}
-          </div>
-        )}
-
-        <div className="session-form-footer">
-          <p>
-            You won't lose credits until the session is
-            completed.
-          </p>
-
-          <button
-            type="submit"
-            className="session-submit-button"
-            disabled={requestLoading}
-          >
-            {requestLoading
-              ? "Sending..."
-              : "Send request"}
-          </button>
-        </div>
-      </form>
-    </motion.div>
-  </div>
-)}
+      )}
     </main>
   );
 }

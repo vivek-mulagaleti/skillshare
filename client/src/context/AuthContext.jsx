@@ -8,69 +8,49 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const loadUser = async () => {
-    const token = localStorage.getItem("token");
+  
+const loadUser = async () => {
+  const token = localStorage.getItem("token");
 
-    if (!token) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
+  if (!token) {
+    setUser(null);
+    setLoading(false);
+    return null;
+  }
 
-    try {
-      const response = await api.get("/users/me", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+  try {
+    const response = await api.get("/users/me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
-      /*
-        Our backend may return the user directly:
+    const currentUser = response.data.user || response.data;
 
-        {
-          name: "...",
-          email: "...",
-          timeCredits: 2
-        }
+    setUser(currentUser);
+    return currentUser;
+  } catch (error) {
+    console.error(
+      "Failed to load current user:",
+      error.response?.data || error.message
+    );
 
-        Or inside a "user" property:
+    localStorage.removeItem("token");
+    setUser(null);
+    return null;
+  } finally {
+    setLoading(false);
+  }
+};
 
-        {
-          user: {
-            name: "...",
-            email: "...",
-            timeCredits: 2
-          }
-        }
+const refreshUser = async () => {
+  return await loadUser();
+};
 
-        This handles both formats.
-      */
-
-      const currentUser = response.data.user || response.data;
-
-      setUser(currentUser);
-
-    } catch (error) {
-      console.error(
-        "Failed to load current user:",
-        error.response?.data || error.message
-      );
-
-      localStorage.removeItem("token");
-      setUser(null);
-
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     loadUser();
   }, []);
-
-  const refreshUser = async () => {
-    await loadUser();
-  };
 
   const logout = () => {
     localStorage.removeItem("token");
