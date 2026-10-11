@@ -160,11 +160,7 @@ Never commit `.env` files, database credentials, JWT secrets, or Google client s
 
 Suggestions and bug reports are welcome. Open an issue with clear reproduction steps, and remove any personal information or credentials before sharing logs.
 
-## License
 
-No license has been added yet. Add a `LICENSE` file if you plan to distribute this project as open source.
-
----
 
 <p align="center">
   <b>Teach a skill. Learn a skill. Make every hour count.</b>
